@@ -1,48 +1,52 @@
 import pandas as pd
-import numpy as np
+import xgboost as xgb
 import joblib
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-import os
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.metrics import mean_squared_error
 
-# Load and preprocess the dataset
-DATA_PATH = "../data/merged_data.csv"
-MODEL_PATH = "../models/weather_predictor.pkl"
+# Load data
+df = pd.read_csv("historical_hourly_data.csv", parse_dates=["time"])
+df = df.dropna()
 
-print("[INFO] Loading dataset...")
-data = pd.read_csv(DATA_PATH)
+# Time-based target shift (forecast 3 hours ahead)
+forecast_horizon = 3  # in hours
+for target in ["temperature_2m", "relative_humidity_2m", "rain", "cloudcover", "windspeed_10m"]:
+    df[f"{target}_future"] = df[target].shift(-forecast_horizon)
 
-# Check for missing values
-data.dropna(inplace=True)
+# Drop final rows with NaNs after shift
+df = df.dropna()
 
-# Separate features and targets
-y_columns = [col for col in data.columns if col.startswith("target_")]
-X = data.drop(columns=y_columns)
-y = data[y_columns]
+# Optional: Extract time features (hour, day)
+df["hour"] = df["time"].dt.hour
+df["dayofweek"] = df["time"].dt.dayofweek
 
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Feature columns (current values + time features)
+features = [
+    "temperature_2m", "relative_humidity_2m", "rain",
+    "cloudcover", "windspeed_10m", "hour", "dayofweek"
+]
+X = df[features]
 
-# Feature scaling
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+# Target columns: 3-hour future values
+targets = [
+    "temperature_2m_future", "relative_humidity_2m_future",
+    "rain_future", "cloudcover_future", "windspeed_10m_future"
+]
+y = df[targets]
 
-# Train the model
-print("[INFO] Training model...")
-model = RandomForestRegressor(n_estimators=100, random_state=42)
-model.fit(X_train_scaled, y_train)
+# Split for validation
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 
-# Evaluate
-print("[INFO] Evaluating model...")
-y_pred = model.predict(X_test_scaled)
-mae = mean_absolute_error(y_test, y_pred)
-rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-print(f"MAE: {mae:.3f}, RMSE: {rmse:.3f}")
+# XGBoost multi-output regression
+model = MultiOutputRegressor(xgb.XGBRegressor(n_estimators=100, max_depth=5, random_state=42))
+model.fit(X_train, y_train)
 
-# Save the model and scaler
-os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-joblib.dump({"model": model, "scaler": scaler, "features": list(X.columns)}, MODEL_PATH)
-print(f"[INFO] Model saved to {MODEL_PATH}")
+# Evaluation
+preds = model.predict(X_test)
+mse = mean_squared_error(y_test, preds)
+print(f"Model trained — MSE: {mse:.4f}")
+
+# Save model
+joblib.dump(model, "model.pkl")
+print("Model saved as model.pkl")

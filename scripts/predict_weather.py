@@ -1,45 +1,81 @@
 import pandas as pd
-import numpy as np
-from joblib import load
-import requests
+import joblib
+import time
 from datetime import datetime
 
-# Load models
-regressor = load("models/weather_predictor.pkl")
-classifier = load("models/flight_condition_model.pkl")
-scaler = load("models/scaler.pkl")
+# Load trained model
+model = joblib.load("model.pkl")
 
-# Example: Current drone input (could be from ROS2 later)
-drone_data = {
-    "temperature": 33.0,
-    "humidity": 55.0,
-    "cloudcover": 20.0,
-    "precipitation": 0.0,
-    "wind_speed": 12.0,
-    "wind_direction": 90.0,
-    "latitude": 28.6139,
-    "longitude": 77.2090,
-    "altitude": 120.0
+# Define thresholds for alerts
+THRESHOLDS = {
+    "rain": 5.0,            # mm
+    "cloudcover": 80.0,     # %
+    "windspeed": 30.0       # km/h
 }
 
-# Convert to DataFrame
-X_input = pd.DataFrame([drone_data])
-X_scaled = scaler.transform(X_input)
+def load_latest_drone_log(filepath="drone_log.csv"):
+    """
+    Load the latest drone log entry (assumes time-sorted CSV).
+    """
+    df = pd.read_csv(filepath, parse_dates=["time"])
+    df = df.dropna()
+    latest = df.iloc[-1]
 
-# Make predictions
-forecast = regressor.predict(X_scaled)[0]
-flight_status = classifier.predict(X_scaled)[0]
+    # Extract input features matching training
+    features = pd.DataFrame([{
+        "temperature_2m": latest["temperature_2m"],
+        "relative_humidity_2m": latest["relative_humidity_2m"],
+        "rain": latest["rain"],
+        "cloudcover": latest["cloudcover"],
+        "windspeed_10m": latest["windspeed_10m"],
+        "hour": latest["time"].hour,
+        "dayofweek": latest["time"].dayofweek
+    }])
+    
+    return features, latest["time"]
 
-# Format forecast output
-forecast_dict = {
-    "future_temperature": round(forecast[0], 2),
-    "future_humidity": round(forecast[1], 2),
-    "future_wind_speed": round(forecast[2], 2),
-}
+def issue_warnings(predictions):
+    rain, _, _, cloud, wind = predictions[0]
+    messages = []
+    if rain > THRESHOLDS["rain"]:
+        messages.append(f"⚠️ Heavy Rainfall Predicted: {rain:.1f} mm")
+    if cloud > THRESHOLDS["cloudcover"]:
+        messages.append(f"☁️ High Cloud Cover: {cloud:.0f}%")
+    if wind > THRESHOLDS["windspeed"]:
+        messages.append(f"💨 Strong Winds: {wind:.1f} km/h")
 
-# Display result
-print("\n📡 Drone Weather Forecast (next 3 hours):")
-for key, val in forecast_dict.items():
-    print(f"{key}: {val}")
+    if messages:
+        print("\n🚨 WEATHER ALERT FOR NEXT 3 HOURS:")
+        for msg in messages:
+            print(" -", msg)
+    else:
+        print("✅ Weather looks good for next 3 hours.")
 
-print(f"\n🚁 Flight Recommendation: {flight_status.upper()}")
+def main_loop():
+    while True:
+        print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Running weather prediction...")
+        
+        try:
+            features, log_time = load_latest_drone_log()
+            predictions = model.predict(features)
+
+            # Print predictions
+            print(f"\n📡 Forecast for {log_time + pd.Timedelta(hours=3)}:")
+            print(f"🌡️ Temp: {predictions[0][0]:.1f}°C")
+            print(f"💧 Humidity: {predictions[0][1]:.1f}%")
+            print(f"🌧️ Rainfall: {predictions[0][2]:.1f} mm")
+            print(f"☁️ Cloud Cover: {predictions[0][3]:.1f}%")
+            print(f"💨 Wind Speed: {predictions[0][4]:.1f} km/h")
+
+            # Check for alerts
+            issue_warnings(predictions)
+
+        except Exception as e:
+            print("❌ Error during prediction:", e)
+
+        print("\n⏳ Waiting 5 minutes before next prediction...")
+        time.sleep(300)  # 5 minutes
+
+# Start the loop
+if __name__ == "__main__":
+    main_loop()
