@@ -14,8 +14,10 @@ This project leverages drone flight data and weather APIs to predict microclimat
 
 ## Directory Structure
 
+~~~
+
 📁 drone-weather-predictor/
-├── 📁 data/                 # Data storage
+├── 📁 data/                 # Data stora
 ├── 📁 models/               # Trained models
 ├── 📁 scripts/
 │   ├── 📄 drone_listener.py     # ROS2 node
@@ -30,6 +32,7 @@ This project leverages drone flight data and weather APIs to predict microclimat
 └── 📄 requirements.txt     # Dependencies
 text
 undefined
+~~~
 
 ## Requirements
 - Python 3.8+
