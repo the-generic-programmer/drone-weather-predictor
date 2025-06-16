@@ -14,21 +14,20 @@ This project leverages drone flight data and weather APIs to predict microclimat
 
 ## Directory Structure
 
-drone-weather-predictor/
-├── data/ # Data storage
-├── models/ # Trained models
-├── scripts/
-│ ├── drone_listener.py # ROS2 node
-│ ├── fetch_weather.py # Weather data fetcher
-│ ├── forecast_pipeline.py # Forecast integration
-│ ├── preprocess_data.py # Data merger
-│ ├── train_model.py # Model trainer
-│ ├── predict.py # Prediction script
-│ └── run_pipeline.py # Automation script (planned)
-├── .env # Configuration
-├── README.md # Documentation
-└── requirements.txt # Dependencies
-
+📁 drone-weather-predictor/
+├── 📁 data/                 # Data storage
+├── 📁 models/               # Trained models
+├── 📁 scripts/
+│   ├── 📄 drone_listener.py     # ROS2 node
+│   ├── 📄 fetch_weather.py      # Weather data fetcher
+│   ├── 📄 forecast_pipeline.py  # Forecast integration
+│   ├── 📄 preprocess_data.py    # Data merger
+│   ├── 📄 train_model.py        # Model trainer
+│   ├── 📄 predict.py            # Prediction script
+│   └── 📄 run_pipeline.py       # Automation script (planned)
+├── 📄 .env                 # Configuration
+├── 📄 README.md            # Documentation
+└── 📄 requirements.txt     # Dependencies
 text
 undefined
 
